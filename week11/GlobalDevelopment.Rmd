@@ -1,0 +1,271 @@
+---
+title: "Make Countries Move"
+author: "Toke Storgaard Guldfeldt"
+date: "2025-03-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#  Explore global development with R
+In this exercise, you will load a filtered `gapminder` dataset -  with a subset of data on global development from 1952 - 2007 in increments of 5 years - to capture the period between the Second World War and the Global Financial Crisis. 
+
+**Your task: Explore the data and visualise it in both static and animated ways, providing answers and solutions to 7 questions/tasks within this script.** 
+
+- **Submit to Github this script with solutions and its knitted version.**  
+- **Submit to Brightspace a document with the (1) URL of this script and its knitted version in Github (2) answer of 250 words and a (3) visualisation of the Final Question**
+
+## Get the necessary packages
+First, start with installing and activating the relevant packages `tidyverse`, `gganimate`, and `gapminder` if you do not have them already. 
+*Pay attention to what warning messages you get when installing `gganimate`, as your computer might need other packages than `gifski` and `av`*
+
+```{r libraries, echo = FALSE}
+# install.packages("gganimate")
+# install.packages("gifski")
+# install.packages("av")
+# install.packages("gapminder")
+library(tidyverse)
+library(gganimate)
+library(gifski)
+library(av)
+library(gapminder)
+```
+
+## Look at the data and tackle the tasks
+First, see which specific years are actually represented in the dataset and what variables are being recorded for each country. Note that when you run the cell below, Rmarkdown will give you two results - one for each line - that you can flip between.
+```{r}
+str(gapminder)
+unique(gapminder$year)
+head(gapminder)
+tail(gapminder)
+```
+
+The dataset contains information on each country in the sampled year, its continent, life expectancy, population, and GDP per capita.
+
+Let's plot all the countries in 1952.
+```{r 1957}
+theme_set(theme_bw())  # set theme to white background for better visibility
+
+ggplot(subset(gapminder, year == 1952), aes(gdpPercap, lifeExp, size = pop)) +
+  geom_point() +
+  scale_x_log10() +
+  ggtitle("Figure 01")
+```
+
+...
+
+We see an interesting spread with an outlier to the right. Explore who it is so you can answer question 2 below!
+
+
+Next, you can generate a similar plot for 2007 and compare the differences
+```{r 2007}
+ggplot(subset(gapminder, year == 2007), aes(gdpPercap, lifeExp, size = pop)) +
+  geom_point() +
+  scale_x_log10() +
+  ggtitle("Figure 02")
+```
+
+Answer: more countries are in general richer and have a higher life expectancy in 2007 than in 1952
+
+...
+
+The black bubbles are a bit hard to read, the comparison would be easier with a bit more visual differentiation.
+
+### Questions for the static figures:
+
+1. *Answer: why does it make sense to have a log10 scale (`scale_x_log10()`) on the x axis?* (hint: try to comment it out and observe the result)
+if we dont specify log, it'll be shown in linear, but because of an outlier it'll heavily skew the results
+
+2. *Answer: In Figure 1: Who is the outlier (the richest country in 1952) far right on the x axis?* 
+```{r}
+gapminder%>%
+  filter(year==1952)%>% #sets year
+  arrange(desc(gdpPercap))%>% #arranges it so the richest is on top
+  slice(1) #shows only the richest
+#the outlier is kuwait
+```
+
+
+3. *Fix Figures 1 and 2: Differentiate the **continents** by color, and fix the axis labels and units to be more legible (**Hint**: the 2.50e+08 is so called "scientific notation". You want to eliminate it.)*
+```{r}
+options(scipen = 999) #this line is put in to convert scientific to numeric, i got it from Stackoverflow from someone named M--
+ggplot(subset(gapminder, year == 1952), aes(gdpPercap, lifeExp, size = pop)) +
+  geom_point(aes(colour = continent)) +
+  scale_x_log10() +
+  labs(title="GDP and life expectancy, 1952",x="GDP pr capita",y="Life expectancy")
+
+ggplot(subset(gapminder, year == 2007), aes(gdpPercap, lifeExp, size = pop)) +
+  geom_point(aes(colour = continent)) +
+  scale_x_log10() +
+  labs(title="GDP and life expectancy, 2007",x="GDP pr capita",y="Life expectancy")
+```
+
+
+4. *Answer: What are the five richest countries in the world in 2007?*
+```{r}
+gapminder%>%
+  filter(year==2007)%>% #makes it so we only look at 2007
+  arrange(desc(gdpPercap))%>% #makes it so we sort by richest top
+  slice(1:5) #makes it so we only look at the top 5
+```
+
+##  Make it move!
+
+The comparison would be easier if we had the two graphs together, animated. We have a lovely tool in R to do this: the `gganimate` package. Beware that there may be other packages your operating system needs in order to glue interim images into an animation or video. Read the messages when installing the package.
+
+Also, there are *two* ways of animating the gapminder ggplot.
+
+### Option 1: Animate using transition_states() 
+
+```{r anim1 start,echo=FALSE}
+#The first step is to create the object-to-be-animated
+
+#anim <- ggplot(gapminder, aes(gdpPercap, lifeExp, size = pop)) +
+  #geom_point(aes(colour = continent)) +
+  #labs(title="GDP and life expectancy 1952 through 2007",x="GDP pr. capita",y="Life expectancy")+
+  #scale_x_log10()  # convert x to log scale
+#anim
+
+#This plot collates all the points across time. The next step is to split it into years and animate it. This may take some time, depending on the processing power of your computer (and other things you are asking it to do). Beware that the animation might appear in the bottom right 'Viewer' pane, not in this rmd preview. You need to `knit` the document to get the visual inside an html file.
+```
+```{r anim1,echo=FALSE}
+#anim + transition_states(year,transition_length = 3,state_length = 1)
+
+#Notice how the animation moves jerkily, 'jumping' from one year to the next 12 times in total. This is a bit clunky, which is why it's good we have another option. 
+```
+
+
+### Option 2 Animate using transition_time()
+This option smooths the transition between different 'frames', because it interpolates and adds transitional years where there are gaps in the timeseries data.
+
+```{r anim2}
+anim2 <- ggplot(gapminder, aes(gdpPercap, lifeExp, size = pop)) +
+  geom_point(aes(colour = continent)) +
+  scale_x_log10() + # convert x to log scale
+  transition_time(year)+
+  labs(title="Year:{frame_time}",x="GDP pr. capita",y="Life expectancy")
+anim2
+```
+
+The much smoother movement in Option 2 will be much more noticeable if you add a title to the chart, that will page through the years corresponding to each frame.
+
+Now, choose one of the animation options and get it to work. You may need to troubleshoot your installation of `gganimate` and other packages 
+
+### Tasks for the animations:
+
+5. *Can you add a title to one or both of the animations above that will change* 
+ *in sync with the animation?* *(**Hint**: search labeling for `transition_states()` and `transition_time()` functions respectively)*
+
+answer: view gif
+
+
+6. *Can you made the axes' labels and units more readable? Consider expanding the abbreviated labels as well as the scientific notation in the legend and x axis to whole numbers. Also, differentiate the countries from different continents by color*
+
+answer: view gif
+
+
+### Final Question
+7. **Is the world a better place today than it was in the year you were born?** *Answer this question using the gapminder data.  Define better either as more prosperous, more free, more healthy, or suggest another measure that you can get from gapminder. Submit a 250 word answer with an illustration to Brightspace. Include a URL in your Brightspace submission that links to the coded solutions in Github. [Hint: if you wish to have more data than is in the filtered gapminder, you can load either the `gapminder_unfiltered` dataset or download more historical data at https://www.gapminder.org/data/ ]*
+```{r,echo=FALSE,eval=FALSE}
+
+eu2002 <- gapminder_unfiltered%>%
+  filter(year==2002)%>%
+  filter(continent=="Europe")%>%
+  summarise(mean(lifeExp))
+
+eu2007 <- gapminder_unfiltered%>%
+  filter(year==2007)%>%
+  filter(continent=="Europe")%>%
+  summarise(mean(lifeExp))
+
+asia2002 <- gapminder_unfiltered%>%
+  filter(year==2002)%>%
+  filter(continent=="Asia")%>%
+  summarise(mean(lifeExp))
+
+asia2007 <- gapminder_unfiltered%>%
+  filter(year==2007)%>%
+  filter(continent=="Asia")%>%
+  summarise(mean(lifeExp))
+
+africa2002 <- gapminder_unfiltered%>%
+  filter(year==2002)%>%
+  filter(continent=="Africa")%>%
+  summarise(mean(lifeExp))
+
+africa2007 <- gapminder_unfiltered%>%
+  filter(year==2007)%>%
+  filter(continent=="Africa")%>%
+  summarise(mean(lifeExp))
+
+oceania2002 <- gapminder_unfiltered%>%
+  filter(year==2002)%>%
+  filter(continent=="Oceania")%>%
+  summarise(mean(lifeExp))
+
+oceania2007 <- gapminder_unfiltered%>%
+  filter(year==2007)%>%
+  filter(continent=="Oceania")%>%
+  summarise(mean(lifeExp))
+
+americas2002 <- gapminder_unfiltered%>%
+  filter(year==2002)%>%
+  filter(continent=="Americas")%>%
+  summarise(mean(lifeExp))
+
+americas2007 <- gapminder_unfiltered%>%
+  filter(year==2007)%>%
+  filter(continent=="Americas")%>%
+  summarise(mean(lifeExp))
+
+fsu2002 <- gapminder_unfiltered%>%
+  filter(year==2002)%>%
+  filter(continent=="FSU")%>%
+  summarise(mean(lifeExp))
+
+fsu2007 <- gapminder_unfiltered%>%
+  filter(year==2007)%>%
+  filter(continent=="FSU")%>%
+  summarise(mean(lifeExp))
+
+global2002 <- gapminder_unfiltered%>%
+  filter(year==2002)%>%
+  summarise(mean(lifeExp))
+
+global2007 <- gapminder_unfiltered%>%
+  filter(year==2007)%>%
+  summarise(mean(lifeExp))
+
+eu2002
+eu2007
+asia2002
+asia2007
+africa2002
+africa2007
+oceania2002
+oceania2007
+americas2002
+americas2007
+fsu2002
+fsu2007
+global2002
+global2007
+```
+
+```{r}
+#one way to see if the world a better place in 2007 than in 2002, the year before i was born (this is done because there is no data from Africa from 2003), is by calculation the mean life expectancy in 2002 and the same for 2007, which is the latest year in the gapminder dataset, and seeing if life expectancy has risen over time or not, if it has, it indicates that the world has become a better place
+
+gapminder_unfiltered%>%
+  filter(year==2002)%>%
+  group_by(continent)%>%
+  summarize(AvgLifeExp2002=mean(lifeExp))
+
+gapminder_unfiltered%>%
+  filter(year==2007)%>%
+  group_by(continent)%>%
+  summarize(AvgLifeExp2007=mean(lifeExp))
+
+#in Europe the average life expectancy increased from 76.5 to 77.3 years in the span of 2002-2007, in Asia it rose from 69.2 to 70.6, in Africa it went from 53.6 to 55.1, in Oceania from 70.2 to 71.3, in the Americas it went from 72.6 to 73.4, in the territory that was formerly in the soviet union, the life expectancy rose from 68.5 to 69.5 years, in regards to life expectancy, the world is marginally better off in 2007 than in 2002, with every place seeing a marginal increase in life expectancy
+```
